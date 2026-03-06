@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Grammar Quest – Multiplayer</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root{--bg:#0f0c29;--card:#1a1740;--a1:#ff6b6b;--a2:#feca57;--a3:#48dbfb;--a4:#1dd1a1;--text:#fff;--muted:#a29bfe}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.stars{position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 20% 50%,#1a0533,transparent 60%),radial-gradient(ellipse at 80% 20%,#0d1b4b,transparent 60%),#0f0c29}
+.stars::before{content:'';position:absolute;inset:0;background-image:radial-gradient(1px 1px at 10% 15%,white,transparent),radial-gradient(1px 1px at 35% 40%,rgba(255,255,255,.7),transparent),radial-gradient(1px 1px at 60% 10%,white,transparent),radial-gradient(1px 1px at 80% 65%,rgba(255,255,255,.8),transparent),radial-gradient(1px 1px at 50% 85%,rgba(255,255,255,.5),transparent)}
+.screen{position:relative;z-index:1;display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.screen.active{display:flex}
+.logo{font-family:'Fredoka One',cursive;font-size:clamp(2.2rem,7vw,4.5rem);background:linear-gradient(135deg,var(--a2),var(--a1),var(--a3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+.sub{color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:.9rem;text-align:center;margin:8px 0 28px}
+.inp{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:14px;padding:13px 22px;font-size:1.1rem;color:white;width:min(360px,90vw);text-align:center;font-family:'Nunito',sans-serif;font-weight:700;outline:none;transition:border-color .2s;margin-top:10px}
+.inp:focus{border-color:var(--a3)}
+.inp::placeholder{color:rgba(255,255,255,.3)}
+.btn{padding:14px 40px;font-family:'Fredoka One',cursive;font-size:1.3rem;border:none;border-radius:50px;cursor:pointer;transition:transform .15s,box-shadow .15s;letter-spacing:1px;margin-top:14px}
+.btn:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-blue{background:linear-gradient(135deg,var(--a3),#0984e3);color:#0f0c29}
+.btn-green{background:linear-gradient(135deg,var(--a4),#00b894);color:#0f0c29}
+.btn-red{background:linear-gradient(135deg,var(--a1),#e17055);color:#fff}
+.btn-purple{background:linear-gradient(135deg,#a29bfe,#6c5ce7);color:#fff}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:480px;width:100%;margin-top:8px}
+@media(max-width:420px){.role-grid{grid-template-columns:1fr}}
+.role-card{background:var(--card);border:2px solid rgba(255,255,255,.1);border-radius:20px;padding:28px 20px;text-align:center;cursor:pointer;transition:transform .2s,border-color .2s}
+.role-card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.35)}
+.role-icon{font-size:2.8rem;margin-bottom:10px}
+.role-title{font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:6px}
+.role-desc{font-size:.82rem;color:var(--muted);font-weight:700}
+.card{background:var(--card);border:1.5px solid rgba(255,255,255,.1);border-radius:22px;padding:28px 30px;max-width:720px;width:100%;animation:slideIn .35s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.room-code-big{font-family:'Fredoka One',cursive;font-size:clamp(3rem,10vw,6rem);background:linear-gradient(135deg,var(--a2),var(--a3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:6px}
+.room-label{color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:2px;font-size:.85rem;text-align:center;margin-bottom:6px}
+.players-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:14px;max-height:240px;overflow-y:auto}
+.player-chip{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.15);border-radius:12px;padding:10px;text-align:center;font-weight:800;font-size:.85rem;animation:slideIn .3s ease}
+.p-avatar{font-size:1.4rem;margin-bottom:4px}
+.qh-header{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:720px;margin-bottom:14px}
+.qh-info{font-family:'Fredoka One',cursive;font-size:1rem;color:var(--muted);background:rgba(255,255,255,.08);padding:6px 16px;border-radius:50px}
+.timer-wrap{position:relative;width:62px;height:62px}
+.timer-svg{transform:rotate(-90deg)}
+.timer-bg{fill:none;stroke:rgba(255,255,255,.1);stroke-width:5}
+.timer-arc{fill:none;stroke:var(--a3);stroke-width:5;stroke-linecap:round;stroke-dasharray:163;stroke-dashoffset:0;transition:stroke-dashoffset .1s linear,stroke .3s}
+.timer-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:1.35rem;color:white}
+.progress-bar{width:100%;max-width:720px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;margin-bottom:18px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--a3),var(--a4));border-radius:3px;transition:width .4s ease}
+.q-type-tag{display:inline-block;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;padding:4px 12px;border-radius:50px;margin-bottom:12px}
+.q-sentence{font-size:clamp(1.1rem,2.8vw,1.4rem);font-weight:700;line-height:1.65}
+.blank{display:inline-block;min-width:90px;border-bottom:3px solid var(--a3);color:var(--a3);font-weight:900;padding:0 6px}
+.q-hint{margin-top:10px;color:var(--muted);font-size:.88rem;font-style:italic}
+.opts-host{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;max-width:720px;width:100%}
+@media(max-width:500px){.opts-host{grid-template-columns:1fr}}
+.opt-host{background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:10px;font-weight:800;font-size:.95rem}
+.opt-host.correct-h{background:rgba(29,209,161,.2)!important;border-color:var(--a4)!important}
+.opt-icon-h{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.ans-bar{width:100%;max-width:720px;display:flex;align-items:center;gap:14px;margin-top:12px}
+.ans-count{font-family:'Fredoka One',cursive;font-size:1rem;color:var(--a4)}
+.ans-track{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+.ans-fill{height:100%;background:linear-gradient(90deg,var(--a4),var(--a3));border-radius:4px;transition:width .4s}
+.p-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:500px}
+@media(max-width:420px){.p-opts{grid-template-columns:1fr}}
+.p-opt{border:none;border-radius:18px;padding:22px 16px;font-family:'Fredoka One',cursive;font-size:1.15rem;cursor:pointer;transition:transform .15s,opacity .2s;display:flex;flex-direction:column;align-items:center;gap:6px;color:#0f0c29;font-weight:900}
+.p-opt:hover:not(:disabled){transform:scale(1.04)}
+.p-opt:disabled{cursor:default}
+.p-opt:nth-child(1){background:var(--a1)}
+.p-opt:nth-child(2){background:var(--a2)}
+.p-opt:nth-child(3){background:var(--a3)}
+.p-opt:nth-child(4){background:var(--a4)}
+.p-opt.dimmed{opacity:.35;transform:scale(.97)}
+.p-opt.correct-p{outline:4px solid white;opacity:1!important;transform:scale(1.03)}
+.p-opt-icon{font-size:1.6rem}
+.lb-title{font-family:'Fredoka One',cursive;font-size:2rem;text-align:center;margin-bottom:20px;background:linear-gradient(135deg,var(--a2),var(--a1));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.lb-list{width:100%;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto}
+.lb-row{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 18px;animation:slideIn .3s ease both}
+.lb-rank{font-family:'Fredoka One',cursive;font-size:1.6rem;width:36px;text-align:center;flex-shrink:0}
+.lb-name{font-weight:800;font-size:1rem;flex:1}
+.lb-score{font-family:'Fredoka One',cursive;font-size:1.3rem;color:var(--a2)}
+.lb-row:nth-child(1){background:rgba(254,202,87,.15);border-color:var(--a2)}
+.lb-row:nth-child(2){background:rgba(178,190,195,.1);border-color:#b2bec3}
+.lb-row:nth-child(3){background:rgba(210,140,70,.12);border-color:#cd7f32}
+.fb-pill{padding:12px 22px;border-radius:14px;font-weight:800;font-size:.95rem;display:none;animation:slideIn .25s ease;margin-top:10px;text-align:center;width:100%;max-width:500px}
+.fb-pill.show{display:block}
+.fb-correct{background:rgba(29,209,161,.2);border:1.5px solid var(--a4);color:var(--a4)}
+.fb-wrong{background:rgba(255,107,107,.15);border:1.5px solid var(--a1);color:#ff8a80}
+.combo-pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Fredoka One',cursive;font-size:3rem;color:var(--a2);pointer-events:none;z-index:100;animation:comboPop .65s ease forwards;text-shadow:0 0 20px rgba(254,202,87,.6)}
+@keyframes comboPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}40%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-65%) scale(1)}}
+.waiting-pulse{font-family:'Fredoka One',cursive;font-size:1.3rem;color:var(--muted);text-align:center;animation:pulse 1.5s ease-in-out infinite}
+.badge-row{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;justify-content:center}
+.badge{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.15);border-radius:50px;padding:5px 16px;font-size:.82rem;font-weight:700;color:var(--muted)}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="stars"></div>
+
+<div class="screen active" id="sRole">
+  <div class="logo">Grammar Quest</div>
+  <div class="sub">⚡ Multiplayer · Past Tenses &amp; Comparatives</div>
+  <div class="role-grid">
+    <div class="role-card" onclick="showScreen('sHostSetup')">
+      <div class="role-icon">🎮</div>
+      <div class="role-title">Host</div>
+      <div class="role-desc">Create room &amp; control the game</div>
+    </div>
+    <div class="role-card" onclick="showScreen('sJoin')">
+      <div class="role-icon">👤</div>
+      <div class="role-title">Player</div>
+      <div class="role-desc">Join with a room code</div>
+    </div>
+  </div>
+  <div class="badge-row">
+    <span class="badge">⏱ 20 sec/question</span>
+    <span class="badge">🏆 15 questions</span>
+    <span class="badge">👥 Real multiplayer</span>
+  </div>
+</div>
+
+<div class="screen" id="sHostSetup">
+  <div class="logo" style="font-size:2.5rem">Host Setup</div>
+  <div class="sub">Enter your name to create a room</div>
+  <input class="inp" id="hostName" placeholder="Your name..." maxlength="16"/>
+  <button class="btn btn-blue" onclick="createRoom()">CREATE ROOM 🚀</button>
+  <button class="btn btn-purple" style="font-size:1rem;padding:10px 28px;margin-top:10px" onclick="showScreen('sRole')">← Back</button>
+</div>
+
+<div class="screen" id="sHostLobby">
+  <div class="room-label">ROOM CODE</div>
+  <div class="room-code-big" id="displayCode">----</div>
+  <div class="sub" style="margin-bottom:16px">Share this code with your class!</div>
+  <div class="card" style="max-width:560px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-weight:800">Players: <span id="playerCountLobby" style="color:var(--a3)">0</span></span>
+      <span style="font-size:.8rem;color:var(--muted)" id="lobbyStatus">Waiting...</span>
+    </div>
+    <div class="players-grid" id="playersGrid"></div>
+  </div>
+  <button class="btn btn-green" id="startBtn" onclick="hostStartGame()" style="margin-top:18px" disabled>START GAME ▶</button>
+  <div style="color:var(--muted);font-size:.85rem;margin-top:8px;font-weight:700" id="startHint">Need at least 1 player to start</div>
+</div>
+
+<div class="screen" id="sHostQuestion">
+  <div class="qh-header">
+    <div class="qh-info" id="qhCounter">Q 1/15</div>
+    <div class="timer-wrap">
+      <svg class="timer-svg" width="62" height="62" viewBox="0 0 56 56">
+        <circle class="timer-bg" cx="28" cy="28" r="26"/>
+        <circle class="timer-arc" id="timerArc" cx="28" cy="28" r="26"/>
+      </svg>
+      <div class="timer-num" id="timerNum">20</div>
+    </div>
+    <div class="qh-info" style="color:var(--a2)">👥 <span id="ansCount">0</span> answered</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="card" id="hostQCard">
+    <div class="q-type-tag" id="qTypeTag"></div>
+    <div class="q-sentence" id="qSentence"></div>
+    <div class="q-hint" id="qHint"></div>
+  </div>
+  <div class="opts-host" id="optsHost"></div>
+  <div class="ans-bar">
+    <div class="ans-count" id="ansCountBar">0/0</div>
+    <div class="ans-track"><div class="ans-fill" id="ansFill" style="width:0%"></div></div>
+  </div>
+  <button class="btn btn-green" id="hostNextBtn" style="display:none;margin-top:14px" onclick="hostNext()">NEXT →</button>
+</div>
+
+<div class="screen" id="sHostLB">
+  <div class="lb-title">🏆 Leaderboard</div>
+  <div class="card" style="max-width:540px"><div class="lb-list" id="lbListMid"></div></div>
+  <button class="btn btn-green" style="margin-top:18px" onclick="hostContinue()">CONTINUE ▶</button>
+</div>
+
+<div class="screen" id="sFinalLB">
+  <div class="lb-title">🎉 Final Results!</div>
+  <div class="card" style="max-width:540px"><div class="lb-list" id="lbListFinal"></div></div>
+  <button class="btn btn-red" style="margin-top:18px" onclick="hostEndGame()">END GAME 🔄</button>
+</div>
+
+<div class="screen" id="sJoin">
+  <div class="logo" style="font-size:2.2rem">Join Game</div>
+  <div class="sub">Enter the room code shown on screen</div>
+  <input class="inp" id="joinCode" placeholder="ROOM CODE" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-size:1.4rem"/>
+  <input class="inp" id="joinName" placeholder="Your name..." maxlength="16"/>
+  <button class="btn btn-blue" onclick="joinRoom()">JOIN 🎮</button>
+  <button class="btn btn-purple" style="font-size:1rem;padding:10px 28px;margin-top:8px" onclick="showScreen('sRole')">← Back</button>
+</div>
+
+<div class="screen" id="sPlayerWait">
+  <div style="text-align:center">
+    <div class="room-label">ROOM</div>
+    <div class="room-code-big" id="pWaitCode">----</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.8rem;color:var(--a2);margin:10px 0 6px" id="pWaitName">Player</div>
+    <div class="waiting-pulse">Waiting for host to start...</div>
+    <div style="margin-top:14px;color:var(--muted);font-size:.9rem;font-weight:700" id="pWaitCount">0 players joined</div>
+  </div>
+</div>
+
+<div class="screen" id="sPlayerQuestion">
+  <div style="font-family:'Fredoka One',cursive;font-size:.95rem;color:var(--muted);margin-bottom:10px" id="pQCounter">Q 1/15</div>
+  <div style="font-family:'Fredoka One',cursive;font-size:1.5rem;color:var(--a2);margin-bottom:18px" id="pTimerDisp">⏱ 20</div>
+  <div class="p-opts" id="pOpts"></div>
+  <div class="fb-pill" id="pFeedback"></div>
+  <div style="margin-top:12px;font-family:'Fredoka One',cursive;font-size:1rem;color:var(--muted)" id="pScore">⭐ 0 pts</div>
+</div>
+
+<div class="screen" id="sPlayerWaitNext">
+  <div style="text-align:center">
+    <div style="font-size:3.5rem;margin-bottom:14px" id="pResultIcon">⏳</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.5rem;color:var(--a3);margin-bottom:10px" id="pResultMsg">Waiting...</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:2.2rem;color:var(--a2)" id="pScoreWait">⭐ 0</div>
+    <div style="color:var(--muted);font-size:.9rem;font-weight:700;margin-top:8px" id="pRankWait"></div>
+  </div>
+</div>
+
+<div class="screen" id="sPlayerFinal">
+  <div style="text-align:center">
+    <div style="font-size:4rem;margin-bottom:12px" id="pFinalEmoji">🎉</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--muted);margin-bottom:4px">Your final score</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:4.5rem;background:linear-gradient(135deg,var(--a2),var(--a1));-webkit-background-clip:text;-webkit-text-fill-color:transparent" id="pFinalScore">0</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;color:var(--a3);margin-top:8px" id="pFinalRank"></div>
+    <div style="color:var(--muted);font-weight:700;margin-top:16px;font-size:.85rem">Check the host screen for the full leaderboard!</div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAklyIBEKrQyFsTsOLen-b6YNxC34dIKHs",
+  authDomain: "grammar-quiz-6c615.firebaseapp.com",
+  databaseURL: "https://grammar-quiz-6c615-default-rtdb.firebaseio.com",
+  projectId: "grammar-quiz-6c615",
+  storageBucket: "grammar-quiz-6c615.firebasestorage.app",
+  messagingSenderId: "453408753149",
+  appId: "1:453408753149:web:d8c7186ea86add8e318594",
+  measurementId: "G-4F0G7GCSXP"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const QUESTIONS=[
+  {type:"Past Simple vs. Continuous",color:"#ff6b6b",sentence:"While the storm {B}, the lighthouse began to shine its beams.",hint:'Correct form of "rage"',opts:["was raging","raged","had raged","were raging"],answer:0,exp:"Past Continuous (was raging) = background action in progress."},
+  {type:"Comparative – Irregular",color:"#feca57",sentence:"The sequel was actually {B} than the original film.",hint:'Comparative of "bad"',opts:["more bad","badder","worse","worst"],answer:2,exp:"'Worse' is the irregular comparative of 'bad'."},
+  {type:"Past Perfect – Sequence",color:"#48dbfb",sentence:"By the time the guest arrived, the host {B}.",hint:'Past Perfect of "leave"',opts:["left","had left","has left","was leaving"],answer:1,exp:"Past Perfect (had left) marks the earlier of two past events."},
+  {type:"Superlative – Special",color:"#1dd1a1",sentence:"This is arguably the {B} expensive option available.",hint:'Superlative of "little" (amount)',opts:["less","fewest","lesser","least"],answer:3,exp:"'Least' is the superlative of 'little' for amount/degree."},
+  {type:"Comparative – Double",color:"#a29bfe",sentence:"The harder he studied, the {B} he became.",hint:'Comparative of "smart"',opts:["most smart","smarter","smartest","more smart"],answer:1,exp:"Double comparative: 'the harder the smarter'."},
+  {type:"Past Narrative",color:"#fd79a8",sentence:"I {B} such a vista until I visited the Alps.",hint:'"never / see" negative',opts:["never saw","had never seen","never see","didn't never see"],answer:1,exp:"'Had never seen' = Past Perfect for experience up to that point."},
+  {type:"Superlative – Irregular",color:"#ffeaa7",sentence:"Of all the brothers, Arthur was the {B}.",hint:'Superlative of "old" (family)',opts:["most old","elder","eldest","older"],answer:2,exp:"'Eldest' = irregular superlative for family members."},
+  {type:"Used to / Would",color:"#74b9ff",sentence:"When I was a child, I {B} every summer at the lake.",hint:'"spend" habitual past',opts:["was spending","spend","used to spend","had spent"],answer:2,exp:"'Used to spend' = habitual action in the past."},
+  {type:"Comparative – Distance",color:"#ff6b6b",sentence:"The research goes much {B} than we initially expected.",hint:'Comparative of "far" (abstract)',opts:["farther","further","farthest","furthest"],answer:1,exp:"'Further' = abstract/metaphorical distance."},
+  {type:"Past Perfect Continuous",color:"#1dd1a1",sentence:"They {B} for hours before the train finally pulled in.",hint:'"wait" duration before a past event',opts:["waited","were waiting","had been waiting","have been waiting"],answer:2,exp:"Past Perfect Continuous = duration up to a past moment."},
+  {type:"Superlative – Abstract",color:"#feca57",sentence:"That was the {B} performance of her entire career.",hint:'Superlative of "good"',opts:["better","best","most good","goodest"],answer:1,exp:"'Best' = irregular superlative of 'good'."},
+  {type:"Comparative – Equality",color:"#a29bfe",sentence:"The exam wasn't nearly as {B} as I had feared.",hint:'"difficult" in as...as structure',opts:["more difficult","difficulter","difficult","difficultly"],answer:2,exp:"In 'as...as' structures, use the base adjective."},
+  {type:"Past Simple – Interrupted",color:"#fd79a8",sentence:"I {B} down the street when I ran into an old friend.",hint:'"walk" action interrupted',opts:["walked","was walking","had walked","walk"],answer:1,exp:"Past Continuous (was walking) = action interrupted."},
+  {type:"Superlative – Modern",color:"#48dbfb",sentence:"Is this the {B} artifact in the museum?",hint:'"most / unique" correct form',opts:["uniquest","most unique","more unique","most uniquely"],answer:1,exp:"3+ syllable adjectives use 'most' for superlative."},
+  {type:"Mixed Mastery",color:"#74b9ff",sentence:"After he finished the book, he realized it was the {B} written story he had ever read.",hint:'Superlative adverb form of "well"',opts:["better","goodest","most well","best"],answer:3,exp:"'Best' = superlative of adverb 'well'."}
+];
+
+const EMOJIS=["🔴","🟡","🔵","🟢"];
+const AVATAR_EMOJIS=["🦊","🐼","🦁","🐸","🦋","🦄","🐯","🐺","🦅","🐙","🐧","🦖","🦩","🐲","🦝","🦨"];
+const TIME_LIMIT=20;
+
+let roomCode=null,playerName=null,playerId=null;
+let currentQ=0,score=0,streak=0,pAnswered=false;
+let timerInterval=null,timeLeft=TIME_LIMIT;
+let roomRef=null,activeListener=null;
+let lastPhase='',lastQIdx=-1;
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function genCode(){return Math.random().toString(36).substring(2,8).toUpperCase()}
+function genId(){return Math.random().toString(36).substring(2,12)}
+function avatarOf(name){return AVATAR_EMOJIS[name.charCodeAt(0)%AVATAR_EMOJIS.length]}
+function stopListen(){if(activeListener&&roomRef){roomRef.off('value',activeListener);activeListener=null}}
+
+async function createRoom(){
+  const name=document.getElementById('hostName').value.trim();
+  if(!name){alert('Enter your name!');return}
+  playerName=name; roomCode=genCode();
+  roomRef=db.ref('rooms/'+roomCode);
+  await roomRef.set({phase:'lobby',currentQ:0,showAnswer:false,gameOver:false,players:{},scores:{},answerCounts:{},ts:Date.now()});
+  roomRef.onDisconnect().remove();
+  document.getElementById('displayCode').textContent=roomCode;
+  showScreen('sHostLobby');
+  listenHostLobby();
+}
+
+function listenHostLobby(){
+  stopListen();
+  activeListener=function(snap){
+    const st=snap.val(); if(!st)return;
+    const players=st.players||{}; const keys=Object.keys(players);
+    document.getElementById('playerCountLobby').textContent=keys.length;
+    document.getElementById('lobbyStatus').textContent=keys.length?keys.length+' ready!':'Waiting...';
+    const grid=document.getElementById('playersGrid'); grid.innerHTML='';
+    keys.forEach(function(pid){
+      const p=players[pid]; const chip=document.createElement('div');
+      chip.className='player-chip';
+      chip.innerHTML='<div class="p-avatar">'+avatarOf(p.name)+'</div><div>'+p.name+'</div>';
+      grid.appendChild(chip);
+    });
+    document.getElementById('startBtn').disabled=keys.length===0;
+    document.getElementById('startHint').textContent=keys.length?keys.length+' player'+(keys.length>1?'s':'')+' ready — start when everyone\'s in!':'Need at least 1 player to start';
+  };
+  roomRef.on('value',activeListener);
+}
+
+async function hostStartGame(){
+  stopListen(); currentQ=0;
+  await roomRef.update({phase:'question',currentQ:0,showAnswer:false,'answerCounts/0':0});
+  showScreen('sHostQuestion');
+  renderHostQuestion(0); startHostTimer(); listenAnswerCount();
+}
+
+function renderHostQuestion(qIdx){
+  const q=QUESTIONS[qIdx];
+  document.getElementById('qhCounter').textContent='Q '+(qIdx+1)+'/15';
+  document.getElementById('progressFill').style.width=((qIdx/15)*100)+'%';
+  const tag=document.getElementById('qTypeTag');
+  tag.textContent=q.type; tag.style.background=q.color+'22'; tag.style.color=q.color; tag.style.border='1.5px solid '+q.color+'55';
+  document.getElementById('qSentence').innerHTML=q.sentence.replace('{B}','<span class="blank">________</span>');
+  document.getElementById('qHint').textContent='💡 '+q.hint;
+  const grid=document.getElementById('optsHost'); grid.innerHTML='';
+  const bg=['rgba(255,107,107,.25)','rgba(254,202,87,.25)','rgba(72,219,251,.25)','rgba(29,209,161,.25)'];
+  const cl=['#ff6b6b','#feca57','#48dbfb','#1dd1a1'];
+  q.opts.forEach(function(opt,i){
+    const d=document.createElement('div'); d.className='opt-host'; d.id='optH'+i;
+    d.innerHTML='<span class="opt-icon-h" style="background:'+bg[i]+';color:'+cl[i]+'">'+EMOJIS[i]+'</span>'+opt;
+    grid.appendChild(d);
+  });
+  document.getElementById('hostNextBtn').style.display='none';
+  document.getElementById('ansCount').textContent='0';
+  document.getElementById('ansCountBar').textContent='0/?';
+  document.getElementById('ansFill').style.width='0%';
+}
+
+function listenAnswerCount(){
+  stopListen(); let lastCount=-1;
+  activeListener=function(snap){
+    const st=snap.val(); if(!st)return;
+    const total=Object.keys(st.players||{}).length;
+    const count=(st.answerCounts||{})[currentQ]||0;
+    document.getElementById('ansCount').textContent=count;
+    document.getElementById('ansCountBar').textContent=count+'/'+total;
+    document.getElementById('ansFill').style.width=(total?(count/total)*100:0)+'%';
+    if(total>0&&count>=total&&count!==lastCount){
+      lastCount=count; clearInterval(timerInterval); timeLeft=0; updateTimerUI(); hostRevealAnswer();
+    }
+  };
+  roomRef.on('value',activeListener);
+}
+
+function startHostTimer(){
+  clearInterval(timerInterval); timeLeft=TIME_LIMIT; updateTimerUI();
+  timerInterval=setInterval(function(){
+    timeLeft--; updateTimerUI();
+    if(timeLeft<=0){clearInterval(timerInterval); hostRevealAnswer();}
+  },1000);
+}
+
+function updateTimerUI(){
+  document.getElementById('timerNum').textContent=timeLeft;
+  const arc=document.getElementById('timerArc');
+  arc.style.strokeDashoffset=163*(1-timeLeft/TIME_LIMIT);
+  arc.style.stroke=timeLeft>10?'#48dbfb':timeLeft>5?'#feca57':'#ff6b6b';
+}
+
+async function hostRevealAnswer(){
+  stopListen(); clearInterval(timerInterval);
+  const q=QUESTIONS[currentQ];
+  document.getElementById('optH'+q.answer).classList.add('correct-h');
+  const blank=document.querySelector('#hostQCard .blank');
+  if(blank){blank.textContent=q.opts[q.answer];blank.style.color='var(--a4)';blank.style.borderBottomColor='var(--a4)'}
+  await roomRef.update({phase:'answer',showAnswer:true});
+  document.getElementById('hostNextBtn').style.display='block';
+}
+
+async function hostNext(){
+  const nextQ=currentQ+1;
+  if(nextQ>=QUESTIONS.length){
+    const snap=await roomRef.once('value'); const st=snap.val();
+    await roomRef.update({phase:'final',gameOver:true}); showFinalLB(st);
+  } else if(nextQ%5===0){
+    const snap=await roomRef.once('value'); const st=snap.val();
+    await roomRef.update({phase:'leaderboard'}); showMidLB(st);
+  } else {
+    currentQ=nextQ;
+    const upd={phase:'question',currentQ:nextQ,showAnswer:false}; upd['answerCounts/'+nextQ]=0;
+    await roomRef.update(upd);
+    showScreen('sHostQuestion'); renderHostQuestion(nextQ); startHostTimer(); listenAnswerCount();
+  }
+}
+
+async function hostContinue(){
+  currentQ++;
+  const upd={phase:'question',currentQ:currentQ,showAnswer:false}; upd['answerCounts/'+currentQ]=0;
+  await roomRef.update(upd);
+  showScreen('sHostQuestion'); renderHostQuestion(currentQ); startHostTimer(); listenAnswerCount();
+}
+
+function buildLB(scores,players){
+  return Object.keys(scores||{}).filter(function(pid){return players&&players[pid]}).map(function(pid){return{pid:pid,name:players[pid].name,score:scores[pid]||0}}).sort(function(a,b){return b.score-a.score});
+}
+
+function renderLBList(el,sorted){
+  const medals=['🥇','🥈','🥉']; el.innerHTML='';
+  sorted.forEach(function(p,i){
+    const row=document.createElement('div'); row.className='lb-row'; row.style.animationDelay=(i*.07)+'s';
+    row.innerHTML='<div class="lb-rank">'+(i<3?medals[i]:i+1)+'</div><div style="font-size:1.3rem">'+avatarOf(p.name)+'</div><div class="lb-name">'+p.name+'</div><div class="lb-score">⭐ '+p.score+'</div>';
+    el.appendChild(row);
+  });
+}
+
+function showMidLB(st){renderLBList(document.getElementById('lbListMid'),buildLB(st.scores,st.players));showScreen('sHostLB')}
+function showFinalLB(st){renderLBList(document.getElementById('lbListFinal'),buildLB(st.scores,st.players));showScreen('sFinalLB')}
+async function hostEndGame(){await roomRef.remove();location.reload()}
+
+async function joinRoom(){
+  const code=document.getElementById('joinCode').value.trim().toUpperCase();
+  const name=document.getElementById('joinName').value.trim();
+  if(!code||!name){alert('Enter both code and name!');return}
+  try {
+    const snap=await db.ref('rooms/'+code).once('value');
+    const st=snap.val();
+    if(!st){alert('Room not found! Make sure the host created the room first.');return}
+    if(st.phase!=='lobby'){alert('Game already started! Wait for the next round.');return}
+    roomCode=code; playerName=name; playerId=genId(); score=0; streak=0;
+    roomRef=db.ref('rooms/'+code);
+    await db.ref('rooms/'+code+'/players/'+playerId).set({name:name,avatar:avatarOf(name)});
+    await db.ref('rooms/'+code+'/scores/'+playerId).set(0);
+    document.getElementById('pWaitCode').textContent=code;
+    document.getElementById('pWaitName').textContent=name;
+    showScreen('sPlayerWait'); lastPhase=''; lastQIdx=-1; listenPlayer();
+  } catch(e){alert('Connection error: '+e.message);}
+}
+
+function listenPlayer(){
+  stopListen();
+  activeListener=function(snap){
+    const st=snap.val(); if(!st)return;
+    const pCount=Object.keys(st.players||{}).length;
+    const el=document.getElementById('pWaitCount');
+    if(el)el.textContent=pCount+' player'+(pCount!==1?'s':'')+' joined';
+    const phase=st.phase; const qIdx=st.currentQ||0;
+    if(phase==='question'){
+      if(lastPhase!=='question'||qIdx!==lastQIdx){
+        lastPhase='question'; lastQIdx=qIdx; pAnswered=false; currentQ=qIdx;
+        renderPlayerQuestion(qIdx); showScreen('sPlayerQuestion'); startPlayerTimer();
+      }
+    } else if(phase==='answer'){
+      if(!pAnswered){
+        pAnswered=true; clearInterval(timerInterval);
+        const q=QUESTIONS[currentQ];
+        showScreen('sPlayerWaitNext');
+        document.getElementById('pResultIcon').textContent='⏱';
+        document.getElementById('pResultMsg').textContent='Time\'s up! ✅ '+q.opts[q.answer];
+        document.getElementById('pScoreWait').textContent='⭐ '+score+' pts';
+        updatePRank(st);
+      }
+    } else if(phase==='leaderboard'){
+      if(lastPhase!=='leaderboard'){
+        lastPhase='leaderboard';
+        const sorted=buildLB(st.scores,st.players);
+        const rank=sorted.findIndex(function(p){return p.pid===playerId})+1;
+        showScreen('sPlayerWaitNext');
+        document.getElementById('pResultIcon').textContent='🏆';
+        document.getElementById('pResultMsg').textContent='Rank #'+rank+' — Next round soon!';
+        document.getElementById('pScoreWait').textContent='⭐ '+score+' pts';
+        document.getElementById('pRankWait').textContent='';
+      }
+    } else if(phase==='final'||st.gameOver){
+      clearInterval(timerInterval); stopListen();
+      const sorted=buildLB(st.scores,st.players);
+      const rank=sorted.findIndex(function(p){return p.pid===playerId})+1;
+      const pct=score/1500;
+      document.getElementById('pFinalEmoji').textContent=pct>=.9?'🏆':pct>=.7?'🎉':pct>=.5?'😊':'💪';
+      document.getElementById('pFinalScore').textContent=score;
+      document.getElementById('pFinalRank').textContent='🏅 Rank #'+rank+' of '+sorted.length;
+      showScreen('sPlayerFinal');
+    }
+  };
+  roomRef.on('value',activeListener);
+}
+
+function renderPlayerQuestion(qIdx){
+  const q=QUESTIONS[qIdx];
+  document.getElementById('pQCounter').textContent='Q '+(qIdx+1)+'/15';
+  document.getElementById('pScore').textContent='⭐ '+score+' pts';
+  const opts=document.getElementById('pOpts'); opts.innerHTML='';
+  q.opts.forEach(function(opt,i){
+    const btn=document.createElement('button'); btn.className='p-opt';
+    btn.innerHTML='<span class="p-opt-icon">'+EMOJIS[i]+'</span>'+opt;
+    btn.onclick=function(){playerAnswer(i,q)};
+    opts.appendChild(btn);
+  });
+  document.getElementById('pFeedback').className='fb-pill';
+}
+
+function startPlayerTimer(){
+  clearInterval(timerInterval); timeLeft=TIME_LIMIT;
+  document.getElementById('pTimerDisp').textContent='⏱ '+timeLeft;
+  timerInterval=setInterval(function(){
+    timeLeft--;
+    const el=document.getElementById('pTimerDisp');
+    if(el)el.textContent='⏱ '+timeLeft;
+    if(timeLeft<=0)clearInterval(timerInterval);
+  },1000);
+}
+
+async function playerAnswer(idx,q){
+  if(pAnswered)return; pAnswered=true; clearInterval(timerInterval);
+  const btns=document.querySelectorAll('.p-opt');
+  btns.forEach(function(b){b.disabled=true});
+  const correct=idx===q.answer;
+  const pts=correct?Math.round(100+(timeLeft/TIME_LIMIT)*900):0;
+  score+=pts;
+  if(correct){streak++;if(streak>=3)showCombo(streak);}else{streak=0;}
+  btns.forEach(function(b,i){if(i===q.answer)b.classList.add('correct-p');else b.classList.add('dimmed')});
+  const fb=document.getElementById('pFeedback');
+  fb.className='fb-pill '+(correct?'fb-correct':'fb-wrong')+' show';
+  fb.textContent=correct?'✅ Correct! +'+pts+' pts':'❌ Correct: '+q.opts[q.answer];
+  document.getElementById('pScore').textContent='⭐ '+score+' pts';
+  await db.ref('rooms/'+roomCode+'/scores/'+playerId).set(score);
+  await db.ref('rooms/'+roomCode+'/answerCounts/'+currentQ).transaction(function(v){return(v||0)+1});
+  setTimeout(async function(){
+    const snap=await roomRef.once('value'); const st=snap.val();
+    showScreen('sPlayerWaitNext');
+    document.getElementById('pResultIcon').textContent=correct?'✅':'❌';
+    document.getElementById('pResultMsg').textContent=correct?'+'+pts+' points! Keep going!':'Better luck next time!';
+    document.getElementById('pScoreWait').textContent='⭐ '+score+' pts';
+    updatePRank(st);
+  },1400);
+}
+
+function updatePRank(st){
+  const sorted=buildLB(st.scores||{},st.players||{});
+  const rank=sorted.findIndex(function(p){return p.pid===playerId})+1;
+  const el=document.getElementById('pRankWait');
+  if(el)el.textContent=rank?'🏅 Rank #'+rank+' of '+sorted.length:'';
+}
+
+function showCombo(n){
+  const el=document.createElement('div'); el.className='combo-pop'; el.textContent='🔥 '+n+'x COMBO!';
+  document.body.appendChild(el); setTimeout(function(){el.remove()},700);
+}
+
+document.getElementById('hostName').addEventListener('keydown',function(e){if(e.key==='Enter')createRoom()});
+document.getElementById('joinName').addEventListener('keydown',function(e){if(e.key==='Enter')joinRoom()});
+document.getElementById('joinCode').addEventListener('input',function(e){
+  e.target.value=e.target.value.toUpperCase();
+  if(e.target.value.length===6)document.getElementById('joinName').focus();
+});
+</script>
+</body>
+</html>
